@@ -14,6 +14,10 @@ Cómo actualizar precios cuando cambian las sugerencias del CICSJ o la inflació
 
 import streamlit as st
 import pandas as pd
+import json
+import os
+import base64
+import requests
 
 # ============================================================
 # CONFIGURACIÓN DE PRECIOS
@@ -60,6 +64,99 @@ MODO_SUBCONTRATADOS = "porcentaje"     # "fijo" o "porcentaje"
 
 
 SERVICIOS = list(PORCENTAJE_OBRA.keys())
+CATEGORIAS = ["1° Categoría", "2° Categoría", "3° Categoría"]
+
+# Archivo local usado SOLO cuando corrés la app en tu propia PC (no hay GitHub configurado).
+# En la nube, si configurás los "Secrets" de GitHub (ver instrucciones), se usa el repo en su lugar.
+ARCHIVO_TARIFAS_LOCAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tarifas_categorias.json")
+
+
+def tarifas_por_defecto() -> dict:
+    """Estructura inicial: las 3 categorías arrancan con los valores base de configuración."""
+    return {
+        categoria: {
+            "porcentaje": dict(PORCENTAJE_OBRA),
+            "m2": dict(PRECIO_POR_M2),
+        }
+        for categoria in CATEGORIAS
+    }
+
+
+def _github_configurado() -> bool:
+    """True si en Streamlit Secrets están cargados los datos del repo de GitHub."""
+    try:
+        return all(k in st.secrets.get("github", {}) for k in ("token", "repo", "path"))
+    except Exception:
+        return False
+
+
+def _github_leer() -> tuple:
+    """Lee el archivo de tarifas directamente del repositorio de GitHub.
+    Devuelve (datos, sha). sha es necesario para poder sobreescribir el archivo después."""
+    cfg = st.secrets["github"]
+    url = f"https://api.github.com/repos/{cfg['repo']}/contents/{cfg['path']}"
+    headers = {"Authorization": f"token {cfg['token']}", "Accept": "application/vnd.github+json"}
+    params = {"ref": cfg.get("branch", "main")}
+    r = requests.get(url, headers=headers, params=params, timeout=10)
+    if r.status_code == 200:
+        contenido = r.json()
+        texto = base64.b64decode(contenido["content"]).decode("utf-8")
+        return json.loads(texto), contenido["sha"]
+    return None, None  # todavía no existe el archivo en el repo, o falló la lectura
+
+
+def _github_escribir(datos: dict, sha: str) -> bool:
+    """Sube (commitea) el archivo de tarifas actualizado al repositorio de GitHub."""
+    cfg = st.secrets["github"]
+    url = f"https://api.github.com/repos/{cfg['repo']}/contents/{cfg['path']}"
+    headers = {"Authorization": f"token {cfg['token']}", "Accept": "application/vnd.github+json"}
+    contenido_b64 = base64.b64encode(
+        json.dumps(datos, ensure_ascii=False, indent=2).encode("utf-8")
+    ).decode("utf-8")
+    body = {
+        "message": "Actualizar tarifas desde la calculadora",
+        "content": contenido_b64,
+        "branch": cfg.get("branch", "main"),
+    }
+    if sha:
+        body["sha"] = sha
+    r = requests.put(url, headers=headers, json=body, timeout=10)
+    return r.status_code in (200, 201)
+
+
+def cargar_tarifas() -> dict:
+    """Carga las tarifas guardadas (de GitHub si está desplegado, o del disco local
+    si lo estás corriendo en tu PC). Si no existe nada guardado, o falta algún
+    servicio/categoría nueva, se completa con los valores base de configuración."""
+    datos = tarifas_por_defecto()
+    guardado = None
+
+    if _github_configurado():
+        guardado, _ = _github_leer()
+    elif os.path.exists(ARCHIVO_TARIFAS_LOCAL):
+        try:
+            with open(ARCHIVO_TARIFAS_LOCAL, "r", encoding="utf-8") as f:
+                guardado = json.load(f)
+        except Exception:
+            guardado = None
+
+    if guardado:
+        for categoria in CATEGORIAS:
+            datos[categoria]["porcentaje"].update(guardado.get(categoria, {}).get("porcentaje", {}))
+            datos[categoria]["m2"].update(guardado.get(categoria, {}).get("m2", {}))
+    return datos
+
+
+def guardar_tarifas(datos: dict) -> bool:
+    """Persiste las tarifas actuales. En GitHub si está configurado (commit al repo),
+    o en un archivo local si lo estás corriendo en tu PC. Devuelve True si salió bien."""
+    if _github_configurado():
+        _, sha = _github_leer()
+        return _github_escribir(datos, sha)
+    else:
+        with open(ARCHIVO_TARIFAS_LOCAL, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=2)
+        return True
 
 
 def calcular_costo_servicio(servicio: str, metodo: str, costo_obra: float, superficie: float,
@@ -146,6 +243,13 @@ else:
     )
     pct_subcontratados_ui = COSTO_SUBCONTRATADOS_PCT
 
+# --- Categoría de tarifa ---------------------------------------------------
+st.subheader("2.2 Categoría de tarifa")
+categoria_seleccionada = st.selectbox(
+    "Categoría a aplicar en este presupuesto",
+    options=CATEGORIAS,
+)
+
 # --- Checklist de servicios -----------------------------------------------
 st.subheader("3. Servicios incluidos")
 st.caption("Tildá los servicios que forman parte de este presupuesto.")
@@ -160,10 +264,13 @@ for i, servicio in enumerate(SERVICIOS):
 st.divider()
 
 # --- Ajuste fino de valores por servicio (opcional y discreto) -------------
+if "tarifas" not in st.session_state:
+    st.session_state.tarifas = cargar_tarifas()
+
 with st.expander("⚙️ Ajustar valores de este presupuesto (opcional)"):
     st.caption(
-        "Parten de la configuración base. Cambiá acá solo si este presupuesto "
-        "puntual necesita una tarifa distinta."
+        "Parten de la configuración base. Los cambios quedan guardados "
+        "automáticamente para la próxima vez que abras la calculadora."
     )
 
     margen_profesional_ui = st.number_input(
@@ -177,28 +284,40 @@ with st.expander("⚙️ Ajustar valores de este presupuesto (opcional)"):
 
     st.markdown("---")
 
-    porcentaje_obra_ui = {}
-    precio_m2_ui = {}
-    for servicio in SERVICIOS:
-        c1, c2 = st.columns(2)
-        with c1:
-            porcentaje_obra_ui[servicio] = st.number_input(
-                f"{servicio} · % obra",
-                min_value=0.0,
-                value=float(PORCENTAJE_OBRA[servicio]),
-                step=0.05,
-                format="%.2f",
-                key=f"pct_ui_{servicio}",
-            )
-        with c2:
-            precio_m2_ui[servicio] = st.number_input(
-                f"{servicio} · $/m²",
-                min_value=0.0,
-                value=float(PRECIO_POR_M2[servicio]),
-                step=50.0,
-                format="%.0f",
-                key=f"m2_ui_{servicio}",
-            )
+    tabs_categorias = st.tabs(CATEGORIAS)
+    for categoria, tab in zip(CATEGORIAS, tabs_categorias):
+        with tab:
+            for servicio in SERVICIOS:
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.session_state.tarifas[categoria]["porcentaje"][servicio] = st.number_input(
+                        f"{servicio} · % obra",
+                        min_value=0.0,
+                        value=float(st.session_state.tarifas[categoria]["porcentaje"][servicio]),
+                        step=0.05,
+                        format="%.2f",
+                        key=f"pct_ui_{categoria}_{servicio}",
+                    )
+                with c2:
+                    st.session_state.tarifas[categoria]["m2"][servicio] = st.number_input(
+                        f"{servicio} · $/m²",
+                        min_value=0.0,
+                        value=float(st.session_state.tarifas[categoria]["m2"][servicio]),
+                        step=50.0,
+                        format="%.0f",
+                        key=f"m2_ui_{categoria}_{servicio}",
+                    )
+
+    # Guarda recién cuando lo pedís (evita generar un commit por cada tecla que apretás)
+    if st.button("💾 Guardar estos valores para la próxima vez"):
+        ok = guardar_tarifas(st.session_state.tarifas)
+        if ok:
+            st.success("Valores guardados correctamente.")
+        else:
+            st.error("No se pudo guardar. Revisá la configuración de GitHub en Secrets.")
+
+porcentaje_obra_ui = st.session_state.tarifas[categoria_seleccionada]["porcentaje"]
+precio_m2_ui = st.session_state.tarifas[categoria_seleccionada]["m2"]
 
 # ============================================================
 # LÓGICA DE CÁLCULO
@@ -249,6 +368,7 @@ total_final = subtotal_servicios + margen_valor + subcontratados_valor
 st.subheader("4. Resumen del presupuesto")
 
 st.markdown(f"**Método utilizado:** {metodo}")
+st.markdown(f"**Categoría de tarifa aplicada:** {categoria_seleccionada}")
 
 if filas:
     df = pd.DataFrame(filas)
