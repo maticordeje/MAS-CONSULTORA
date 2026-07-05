@@ -1,0 +1,68 @@
+{
+  "1° Categoría": {
+    "porcentaje": {
+      "Memoria de cálculo estructural": 1.1,
+      "Plano de arquitectura": 0.75,
+      "Plano estructural": 0.75,
+      "Modelado 3D (BIM)": 1.1,
+      "Renders": 0.25,
+      "Videos de presentación": 0.3,
+      "Cotizaciones (Cómputo y presupuesto)": 0.4,
+      "Firma": 0.4
+    },
+    "m2": {
+      "Memoria de cálculo estructural": 1500.0,
+      "Plano de arquitectura": 800.0,
+      "Plano estructural": 800.0,
+      "Modelado 3D (BIM)": 1100.0,
+      "Renders": 300.0,
+      "Videos de presentación": 400.0,
+      "Cotizaciones (Cómputo y presupuesto)": 400.0,
+      "Firma": 300.0
+    }
+  },
+  "2° Categoría": {
+    "porcentaje": {
+      "Memoria de cálculo estructural": 1.1,
+      "Plano de arquitectura": 0.75,
+      "Plano estructural": 0.75,
+      "Modelado 3D (BIM)": 1.1,
+      "Renders": 0.25,
+      "Videos de presentación": 0.3,
+      "Cotizaciones (Cómputo y presupuesto)": 0.4,
+      "Firma": 0.4
+    },
+    "m2": {
+      "Memoria de cálculo estructural": 1100.0,
+      "Plano de arquitectura": 800.0,
+      "Plano estructural": 800.0,
+      "Modelado 3D (BIM)": 1100.0,
+      "Renders": 300.0,
+      "Videos de presentación": 400.0,
+      "Cotizaciones (Cómputo y presupuesto)": 400.0,
+      "Firma": 300.0
+    }
+  },
+  "3° Categoría": {
+    "porcentaje": {
+      "Memoria de cálculo estructural": 1.1,
+      "Plano de arquitectura": 0.75,
+      "Plano estructural": 0.75,
+      "Modelado 3D (BIM)": 1.1,
+      "Renders": 0.25,
+      "Videos de presentación": 0.3,
+      "Cotizaciones (Cómputo y presupuesto)": 0.4,
+      "Firma": 0.4
+    },
+    "m2": {
+      "Memoria de cálculo estructural": 1100.0,
+      "Plano de arquitectura": 800.0,
+      "Plano estructural": 800.0,
+      "Modelado 3D (BIM)": 1100.0,
+      "Renders": 300.0,
+      "Videos de presentación": 400.0,
+      "Cotizaciones (Cómputo y presupuesto)": 400.0,
+      "Firma": 300.0
+    }
+  }
+}
