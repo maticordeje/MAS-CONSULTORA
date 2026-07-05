@@ -1,0 +1,4 @@
+tarifas_categorias.json
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
