@@ -82,9 +82,9 @@ def formatear_moneda(valor: float) -> str:
 # INTERFAZ DE USUARIO (Streamlit)
 # ============================================================
 
-st.set_page_config(page_title="Calculadora de Honorarios", page_icon="📐", layout="centered")
+st.set_page_config(page_title="MAS Consultora", layout="centered")
 
-st.title("📐 Calculadora de Honorarios Profesionales")
+st.title("MAS CONSULTORA")
 st.caption("Consultora técnica de ingeniería y arquitectura · San Juan, Argentina")
 
 st.divider()
@@ -165,6 +165,18 @@ with st.expander("⚙️ Ajustar valores de este presupuesto (opcional)"):
         "Parten de la configuración base. Cambiá acá solo si este presupuesto "
         "puntual necesita una tarifa distinta."
     )
+
+    margen_profesional_ui = st.number_input(
+        "Margen profesional (%)",
+        min_value=0.0,
+        value=float(MARGEN_PROFESIONAL_PCT),
+        step=1.0,
+        format="%.1f",
+        key="margen_ui",
+    )
+
+    st.markdown("---")
+
     porcentaje_obra_ui = {}
     precio_m2_ui = {}
     for servicio in SERVICIOS:
@@ -209,8 +221,8 @@ for servicio in servicios_seleccionados:
         "Costo": costo,
     })
 
-# Margen profesional
-margen_valor = subtotal_servicios * (MARGEN_PROFESIONAL_PCT / 100)
+# Margen profesional (usa lo elegido en el apartado de ajustes)
+margen_valor = subtotal_servicios * (margen_profesional_ui / 100)
 
 # Subcontratados (usa lo elegido en la interfaz, sección 2.1)
 usar_modo_fijo = modo_subcontratados_ui == "Monto fijo total"
@@ -251,7 +263,7 @@ st.markdown("---")
 resumen_col1, resumen_col2 = st.columns(2)
 with resumen_col1:
     st.metric("Subtotal servicios", formatear_moneda(subtotal_servicios))
-    st.metric(f"Margen profesional ({MARGEN_PROFESIONAL_PCT:.0f}%)", formatear_moneda(margen_valor))
+    st.metric(f"Margen profesional ({margen_profesional_ui:.1f}%)", formatear_moneda(margen_valor))
 with resumen_col2:
     etiqueta_subcontratados = (
         "Equipo técnico / subcontratados (monto fijo)"
